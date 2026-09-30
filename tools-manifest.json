@@ -1,0 +1,67 @@
+{
+  "api_name": "ankiweb",
+  "base_url": "https://ankiuser.net",
+  "description": "Terminal-native card creation, deck management, interactive study, and shared deck intelligence for AnkiWeb.",
+  "mcp_ready": "partial",
+  "http_transport": "standard",
+  "auth": {
+    "type": "cookie",
+    "header": "Cookie",
+    "in": "header",
+    "env_vars": [
+      "ANKIWEB_COOKIES"
+    ],
+    "env_var_specs": [
+      {
+        "name": "ANKIWEB_COOKIES",
+        "kind": "per_call",
+        "required": true,
+        "sensitive": true,
+        "inferred": true
+      }
+    ],
+    "cookie_domain": ".ankiuser.net",
+    "cookies": [
+      "ankiweb"
+    ]
+  },
+  "required_headers": [],
+  "tools": [
+    {
+      "name": "shared_info",
+      "description": "Get detailed information for a community shared deck. Optional: deck_id. Returns the SharedDeck.",
+      "method": "GET",
+      "path": "/svc/shared/deck-info",
+      "no_auth": true,
+      "params": [
+        {
+          "name": "deck_id",
+          "type": "string",
+          "location": "query",
+          "description": "Shared deck ID"
+        }
+      ]
+    },
+    {
+      "name": "shared_search",
+      "description": "Search community shared decks on AnkiWeb. Optional: search, limit (default: 50). Returns array of SharedDeck.",
+      "method": "GET",
+      "path": "/svc/shared/list-decks",
+      "no_auth": true,
+      "params": [
+        {
+          "name": "search",
+          "type": "string",
+          "location": "query",
+          "description": "Query term to search shared decks"
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "location": "query",
+          "description": "Maximum number of shared decks to return"
+        }
+      ]
+    }
+  ]
+}

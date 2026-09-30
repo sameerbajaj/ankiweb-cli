@@ -1,0 +1,55 @@
+version: 2
+project_name: ankiweb-cli
+changelog:
+  disable: true
+builds:
+  - id: ankiweb
+    main: ./cmd/ankiweb
+    binary: ankiweb
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/sameerbajaj/ankiweb-cli/internal/cli.version={{ .Version }}
+    targets:
+      - darwin_amd64
+      - darwin_arm64
+      - linux_amd64
+      - linux_arm64
+      - windows_amd64
+      - windows_arm64
+  - id: ankiweb-mcp
+    main: ./cmd/ankiweb-mcp
+    binary: ankiweb-mcp
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    targets:
+      - darwin_amd64
+      - darwin_arm64
+      - linux_amd64
+      - linux_arm64
+      - windows_amd64
+      - windows_arm64
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+checksum:
+  name_template: checksums.txt
+brews:
+  - name: ankiweb
+    repository:
+      owner: sameerbajaj
+      name: homebrew-tap
+    homepage: "https://github.com/sameerbajaj/ankiweb-cli"
+    description: "Terminal-native card creation, deck management, interactive study, and shared deck intelligence for AnkiWeb."
+    install: |
+      bin.install "ankiweb"
+      bin.install "ankiweb-mcp"

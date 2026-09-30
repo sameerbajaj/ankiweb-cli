@@ -1,0 +1,262 @@
+name: ankiweb
+description: "Terminal-native card creation, deck management, interactive study, and shared deck intelligence for AnkiWeb."
+cli_description: "Terminal-native card creation, deck management, interactive study, and shared deck intelligence for AnkiWeb."
+version: "0.1.0"
+category: productivity
+base_url: "https://ankiuser.net"
+
+auth:
+  type: cookie
+  header: "Cookie"
+  in: header
+  cookies:
+    - ankiweb
+  env_vars:
+    - ANKIWEB_COOKIES
+
+cache:
+  enabled: true
+  stale_after: 24h
+
+learn:
+  entity_lookup_seeds:
+    deck:
+      - canonical: Default
+        aliases: [default, main]
+    notetype:
+      - canonical: Basic
+        aliases: [basic, standard]
+      - canonical: Basic (and reversed card)
+        aliases: [reversed, basic-reversed, bidirectional]
+      - canonical: Cloze
+        aliases: [cloze, fill-in]
+  synonyms:
+    "review": "study"
+    "cards": "notes"
+
+resources:
+  card:
+    description: "Manage and create notes and cards in your AnkiWeb collection"
+    endpoints:
+      add:
+        method: POST
+        path: "/svc/editor/add-or-update"
+        description: "Add or update a note/card in your AnkiWeb collection"
+        example: "  ankiweb card add --deck \"Default\" --front \"What is Raft?\" --back \"A consensus algorithm\" --tags cs"
+        body:
+          - name: deck
+            type: string
+            description: "Target deck name or ID"
+          - name: notetype
+            type: string
+            description: "Note type name or ID (defaults to Basic)"
+          - name: front
+            type: string
+            description: "Front field content (or primary field)"
+          - name: back
+            type: string
+            description: "Back field content"
+          - name: tags
+            type: string
+            description: "Space-separated tags"
+        response:
+          type: object
+          item: Card
+      search:
+        method: POST
+        path: "/svc/search/search"
+        mutation: false
+        description: "Search notes in your collection"
+        example: "  ankiweb card search --query \"tag:cs\""
+        body:
+          - name: query
+            type: string
+            description: "Search query using Anki search syntax"
+        response:
+          type: array
+          item: Card
+      get:
+        method: POST
+        path: "/svc/editor/get-note-info"
+        mutation: false
+        description: "Get details and field values for a note"
+        example: "  ankiweb card get --note-id 123456789"
+        body:
+          - name: note_id
+            type: string
+            description: "Note ID"
+        response:
+          type: object
+          item: Card
+      notetypes:
+        method: POST
+        path: "/svc/editor/get-info-for-adding"
+        mutation: false
+        description: "List available note types and decks in your collection"
+        example: "  ankiweb card notetypes"
+        response:
+          type: object
+
+  deck:
+    description: "Manage decks, limits, and review hierarchies"
+    endpoints:
+      list:
+        method: POST
+        path: "/svc/decks/deck-list-info"
+        mutation: false
+        description: "List all decks with due, learn, and new card counts"
+        example: "  ankiweb deck list"
+        response:
+          type: array
+          item: Deck
+      create:
+        method: POST
+        path: "/svc/decks/create-deck"
+        description: "Create a new deck in your collection"
+        example: "  ankiweb deck create --name \"Biology\""
+        body:
+          - name: name
+            type: string
+            required: true
+            description: "Name of the new deck"
+        response:
+          type: object
+          item: Deck
+      rename:
+        method: POST
+        path: "/svc/decks/rename-deck"
+        description: "Rename an existing deck"
+        example: "  ankiweb deck rename --deck-id 123456 --name \"Advanced Biology\""
+        body:
+          - name: deck_id
+            type: string
+            required: true
+            description: "Deck ID to rename"
+          - name: name
+            type: string
+            required: true
+            description: "New name for the deck"
+        response:
+          type: object
+          item: Deck
+      delete:
+        method: POST
+        path: "/svc/decks/remove-deck"
+        description: "Delete a deck from your collection"
+        example: "  ankiweb deck delete --deck-id 123456"
+        body:
+          - name: deck_id
+            type: string
+            required: true
+            description: "Deck ID to delete"
+        response:
+          type: object
+      limits:
+        method: POST
+        path: "/svc/study/get-deck-limits"
+        mutation: false
+        description: "Get daily study and review limits for a deck"
+        example: "  ankiweb deck limits --deck-id 123456"
+        body:
+          - name: deck_id
+            type: string
+            required: true
+            description: "Deck ID"
+        response:
+          type: object
+
+  shared:
+    description: "Search and inspect community shared decks"
+    endpoints:
+      search:
+        method: GET
+        path: "/svc/shared/list-decks"
+        no_auth: true
+        description: "Search community shared decks on AnkiWeb"
+        example: "  ankiweb shared search --search \"Japanese\""
+        params:
+          - name: search
+            type: string
+            description: "Query term to search shared decks"
+          - name: limit
+            type: int
+            default: 50
+            description: "Maximum number of shared decks to return"
+        response:
+          type: array
+          item: SharedDeck
+      info:
+        method: GET
+        path: "/svc/shared/deck-info"
+        no_auth: true
+        description: "Get detailed information for a community shared deck"
+        example: "  ankiweb shared info --deck-id 241428882"
+        params:
+          - name: deck_id
+            type: string
+            description: "Shared deck ID"
+        response:
+          type: object
+          item: SharedDeck
+
+types:
+  Card:
+    fields:
+      - name: id
+        type: string
+        description: "Unique note identifier"
+      - name: notetype_id
+        type: string
+        description: "Associated note type ID"
+      - name: deck_id
+        type: string
+        description: "Associated deck ID"
+      - name: fields
+        type: string
+        description: "JSON array or raw strings of note fields"
+      - name: tags
+        type: string
+        description: "Tags assigned to this note"
+  Deck:
+    fields:
+      - name: id
+        type: string
+        description: "Unique deck identifier"
+      - name: name
+        type: string
+        description: "Full deck name including subdeck hierarchy"
+      - name: new_count
+        type: int
+        description: "Number of new cards ready for introduction"
+      - name: learn_count
+        type: int
+        description: "Number of learning/relearning cards in queue"
+      - name: review_count
+        type: int
+        description: "Number of due review cards"
+  SharedDeck:
+    fields:
+      - name: id
+        type: string
+        description: "Unique community shared deck identifier"
+      - name: title
+        type: string
+        description: "Shared deck title"
+      - name: thumbs_up
+        type: int
+        description: "Positive upvotes from users"
+      - name: thumbs_down
+        type: int
+        description: "Negative downvotes from users"
+      - name: notes_count
+        type: int
+        description: "Total notes contained in the shared deck"
+      - name: audio_count
+        type: int
+        description: "Count of notes with audio clips"
+      - name: image_count
+        type: int
+        description: "Count of notes with images"
+      - name: modified
+        type: string
+        description: "Last modified date of the shared deck"

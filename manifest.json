@@ -1,0 +1,38 @@
+{
+  "manifest_version": "0.3",
+  "name": "ankiweb-mcp",
+  "display_name": "AnkiWeb",
+  "version": "0.1.0",
+  "description": "Terminal-native card creation, deck management, interactive study, and shared deck intelligence for AnkiWeb.",
+  "author": {
+    "name": "Sameer Bajaj"
+  },
+  "license": "Apache-2.0",
+  "server": {
+    "type": "binary",
+    "entry_point": "bin/ankiweb-mcp",
+    "mcp_config": {
+      "command": "${__dirname}/bin/ankiweb-mcp",
+      "args": [],
+      "env": {
+        "ANKIWEB_COOKIES": "${user_config.ankiweb_cookies}"
+      }
+    }
+  },
+  "user_config": {
+    "ankiweb_cookies": {
+      "type": "string",
+      "title": "ANKIWEB_COOKIES",
+      "description": "Optional. Sets ANKIWEB_COOKIES for the AnkiWeb MCP server.",
+      "sensitive": true
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ]
+  }
+}
