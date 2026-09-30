@@ -6,9 +6,9 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 
+	"github.com/sameerbajaj/ankiweb-cli/internal/ankiwebproto"
 	"github.com/spf13/cobra"
 )
 
@@ -17,49 +17,26 @@ func newDeckListCmd(flags *rootFlags) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:         "list",
-		Short:       "List all decks with due, learn, and new card counts",
+		Short:       "List all decks in your AnkiWeb collection",
 		Example:     "  ankiweb deck list",
-		Annotations: map[string]string{"pp:endpoint": "deck.list", "pp:method": "POST", "pp:path": "/svc/decks/deck-list-info", "mcp:read-only": "true"},
+		Annotations: map[string]string{"pp:endpoint": "deck.list", "pp:method": "POST", "pp:path": "/svc/editor/get-info-for-adding", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !stdinBody {
-			}
-			path := "/svc/decks/deck-list-info"
 			c, err := flags.newClient()
 			if err != nil {
 				return err
 			}
-			params := map[string]string{}
-			var body any
-			if stdinBody {
-				stdinData, err := io.ReadAll(os.Stdin)
-				if err != nil {
-					return fmt.Errorf("reading stdin: %w", err)
-				}
-				var jsonBody map[string]any
-				if err := json.Unmarshal(stdinData, &jsonBody); err != nil {
-					return fmt.Errorf("parsing stdin JSON: %w", err)
-				}
-				body = jsonBody
-			} else {
-				bodyMap := map[string]any{}
-				body = bodyMap
-			}
-			data, statusCode, err := c.PostQueryWithParams(cmd.Context(), path, params, body)
+			info, err := ankiwebproto.FetchAddInfo(cmd.Context(), c)
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)
 			}
-			_ = statusCode
+			data, err := json.Marshal(info.Decks)
+			if err != nil {
+				return err
+			}
 			prov := attachFreshness(DataProvenance{Source: "live"}, flags)
 			outputData := data
-			// Print provenance to stderr for human-facing output only.
-			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
-			// --select) and piped stdout suppress this line; the JSON envelope
-			// already carries meta.source for those consumers.
-			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				var countItems []json.RawMessage
-				_ = json.Unmarshal(outputData, &countItems)
-				printProvenance(cmd, len(countItems), prov)
+				printProvenance(cmd, len(info.Decks), prov)
 			}
 			// For JSON output, wrap with provenance envelope before passing through flags.
 			// --select wins over --compact when both are set; --compact only runs when
