@@ -9,5 +9,9 @@
 *.db
 *.db-wal
 *.db-shm
+*.anki2
+*.toml
+*.env
+credentials*
 .DS_Store
 coverage.out
