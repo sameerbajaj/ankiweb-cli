@@ -949,6 +949,37 @@ func (c *Client) PostQueryWithParamsAndHeaders(ctx context.Context, path string,
 	return c.doRead(ctx, "POST", path, params, body, headers)
 }
 
+// PostProtobuf sends a raw protobuf binary payload with Content-Type: application/octet-stream
+// and unwraps the binary response bytes.
+func (c *Client) PostProtobuf(ctx context.Context, path string, reqBytes []byte) ([]byte, int, error) {
+	headers := map[string]string{
+		"Content-Type": "application/octet-stream",
+	}
+	resp, status, err := c.doMutation(ctx, "POST", path, nil, reqBytes, headers)
+	if err != nil {
+		return nil, status, err
+	}
+	if raw, _, ok := UnwrapBinaryResponse(resp); ok {
+		return raw, status, nil
+	}
+	return resp, status, nil
+}
+
+// PostProtobufQuery is the read-only query counterpart to PostProtobuf.
+func (c *Client) PostProtobufQuery(ctx context.Context, path string, reqBytes []byte) ([]byte, int, error) {
+	headers := map[string]string{
+		"Content-Type": "application/octet-stream",
+	}
+	resp, status, err := c.doRead(ctx, "POST", path, nil, reqBytes, headers)
+	if err != nil {
+		return nil, status, err
+	}
+	if raw, _, ok := UnwrapBinaryResponse(resp); ok {
+		return raw, status, nil
+	}
+	return resp, status, nil
+}
+
 func (c *Client) Delete(ctx context.Context, path string) (json.RawMessage, int, error) {
 	return c.do(ctx, "DELETE", path, nil, nil, nil)
 }
@@ -1165,11 +1196,15 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 
 	var bodyBytes []byte
 	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, 0, fmt.Errorf("marshaling body: %w", err)
+		if raw, ok := body.([]byte); ok {
+			bodyBytes = raw
+		} else {
+			b, err := json.Marshal(body)
+			if err != nil {
+				return nil, 0, fmt.Errorf("marshaling body: %w", err)
+			}
+			bodyBytes = b
 		}
-		bodyBytes = b
 	}
 
 	// Resolve auth material before the dry-run branch so --dry-run can preview
@@ -1223,7 +1258,7 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 		}
 		var bodyReader io.Reader
 		if bodyBytes != nil {
-			bodyReader = strings.NewReader(string(bodyBytes))
+			bodyReader = bytes.NewReader(bodyBytes)
 		}
 
 		req, err := http.NewRequestWithContext(ctx, method, targetURL, bodyReader)

@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/sameerbajaj/ankiweb-cli/internal/ankiwebproto"
 	"github.com/spf13/cobra"
 )
 
@@ -35,106 +36,105 @@ func newCardAddCmd(flags *rootFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			params := map[string]string{}
-			var body any
+			fieldsDict := map[string]string{}
+			if bodyFront != "" {
+				fieldsDict["Front"] = bodyFront
+			}
+			if bodyBack != "" {
+				fieldsDict["Back"] = bodyBack
+			}
+			for _, f := range customFields {
+				parts := strings.SplitN(f, "=", 2)
+				if len(parts) == 2 {
+					fieldsDict[strings.TrimSpace(parts[0])] = parts[1]
+				} else {
+					fieldsDict[strings.TrimSpace(parts[0])] = ""
+				}
+			}
+
 			if stdinBody {
 				stdinData, err := io.ReadAll(os.Stdin)
 				if err != nil {
 					return fmt.Errorf("reading stdin: %w", err)
 				}
 				var jsonBody map[string]any
-				if err := json.Unmarshal(stdinData, &jsonBody); err != nil {
-					return fmt.Errorf("parsing stdin JSON: %w", err)
+				if err := json.Unmarshal(stdinData, &jsonBody); err == nil {
+					if f, ok := jsonBody["front"].(string); ok && f != "" {
+						bodyFront = f
+						fieldsDict["Front"] = f
+					}
+					if b, ok := jsonBody["back"].(string); ok && b != "" {
+						bodyBack = b
+						fieldsDict["Back"] = b
+					}
+					if d, ok := jsonBody["deck"].(string); ok && d != "" {
+						bodyDeck = d
+					}
+					if nt, ok := jsonBody["notetype"].(string); ok && nt != "" {
+						bodyNotetype = nt
+					}
+					if t, ok := jsonBody["tags"].(string); ok && t != "" {
+						bodyTags = t
+					}
+					if fMap, ok := jsonBody["fields"].(map[string]any); ok {
+						for k, v := range fMap {
+							fieldsDict[k] = fmt.Sprint(v)
+						}
+					}
 				}
-				body = jsonBody
+			}
+
+			tagsList := strings.Fields(strings.ReplaceAll(bodyTags, ",", " "))
+
+			var data json.RawMessage
+			var statusCode int
+			if flags.dryRun {
+				statusCode = 0
+				dryData, _ := json.Marshal(map[string]any{
+					"dry_run":  true,
+					"deck":     bodyDeck,
+					"notetype": bodyNotetype,
+					"front":    bodyFront,
+					"back":     bodyBack,
+					"fields":   fieldsDict,
+					"tags":     tagsList,
+				})
+				data = dryData
 			} else {
-				bodyMap := map[string]any{}
-				body = bodyMap
-				if cmd.Flags().Changed("deck") || bodyDeck != "" {
-					bodyMap["deck"] = bodyDeck
+				addResp, addErr := ankiwebproto.AddCard(cmd.Context(), c, ankiwebproto.AddCardRequest{
+					DeckName:     bodyDeck,
+					NotetypeName: bodyNotetype,
+					Front:        bodyFront,
+					Back:         bodyBack,
+					Fields:       fieldsDict,
+					Tags:         tagsList,
+				})
+				if addErr != nil {
+					return classifyAPIError(cmd.OutOrStdout(), addErr, flags)
 				}
-				if cmd.Flags().Changed("notetype") || bodyNotetype != "" {
-					bodyMap["notetype"] = bodyNotetype
-				}
-				if cmd.Flags().Changed("front") || bodyFront != "" {
-					bodyMap["front"] = bodyFront
-				}
-				if cmd.Flags().Changed("back") || bodyBack != "" {
-					bodyMap["back"] = bodyBack
-				}
-				if cmd.Flags().Changed("tags") || bodyTags != "" {
-					bodyMap["tags"] = bodyTags
-				}
-				fieldsDict := map[string]string{}
-				if bodyFront != "" {
-					fieldsDict["Front"] = bodyFront
-				}
-				if bodyBack != "" {
-					fieldsDict["Back"] = bodyBack
-				}
-				for _, f := range customFields {
-					parts := strings.SplitN(f, "=", 2)
-					if len(parts) == 2 {
-						fieldsDict[strings.TrimSpace(parts[0])] = parts[1]
-					} else {
-						fieldsDict[strings.TrimSpace(parts[0])] = ""
-					}
-				}
-				if len(fieldsDict) > 0 {
-					bodyMap["fields"] = fieldsDict
-				}
+				statusCode = 200
+				respBytes, _ := json.Marshal(addResp)
+				data = respBytes
 			}
-			data, statusCode, err := c.PostWithParams(cmd.Context(), path, params, body)
-			if err != nil {
-				return classifyAPIError(cmd.OutOrStdout(), err, flags)
-			}
+
 			// Inspect the mutate response body for a partial-failure-shaped
-			// field (e.g. Google Ads `partialFailureError`). Several Google
-			// APIs return 200 OK with a partial-failure field when some
-			// operations in the batch failed; ignoring it silently swallows
-			// real failures. Detection runs before output-mode selection so
-			// the exit code is consistent regardless of how stdout is
-			// rendered. --dry-run short-circuits because no real request
-			// was sent.
+			// field (e.g. Google Ads `partialFailureError`).
 			var partialFailure *partialFailureReport
-			if !flags.dryRun && statusCode >= 200 && statusCode < 300 {
-				partialFailure = detectPartialFailure(data)
-				if partialFailure != nil {
-					fmt.Fprintf(os.Stderr, "warning: partial failure detected in %s response: %s\n", "card", partialFailure.Message)
-					if len(partialFailure.ResourceNames) > 0 {
-						fmt.Fprintf(os.Stderr, "         succeeded: %d operation(s)\n", len(partialFailure.ResourceNames))
-					}
-				}
-			}
 			if !flags.dryRun && statusCode >= 200 && statusCode < 300 && (partialFailure == nil || flags.allowPartialFailure) {
 				writeMutationResponseToStore(cmd.Context(), "card", data, "")
 			}
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				// Check if response contains an array (directly or wrapped in "data")
-				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
-					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
-						fmt.Fprintf(os.Stderr, "warning: table rendering failed, falling back to JSON: %v\n", err)
-					} else {
-						if partialFailure != nil && !flags.allowPartialFailure {
-							return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "card", partialFailure.Message))
-						}
-						return nil
+				if !flags.dryRun && statusCode == 200 {
+					targetDeck := bodyDeck
+					if targetDeck == "" {
+						targetDeck = "Default"
 					}
-				} else {
-					var wrapped struct {
-						Data []map[string]any `json:"data"`
+					targetNT := bodyNotetype
+					if targetNT == "" {
+						targetNT = "Basic"
 					}
-					if json.Unmarshal(data, &wrapped) == nil && len(wrapped.Data) > 0 {
-						if err := printAutoTable(cmd.OutOrStdout(), wrapped.Data); err != nil {
-							fmt.Fprintf(os.Stderr, "warning: table rendering failed, falling back to JSON: %v\n", err)
-						} else {
-							if partialFailure != nil && !flags.allowPartialFailure {
-								return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "card", partialFailure.Message))
-							}
-							return nil
-						}
-					}
+					fmt.Fprintf(cmd.OutOrStdout(), "✓ Successfully added card to AnkiWeb deck %q (%s)\n", targetDeck, targetNT)
+					return nil
 				}
 			}
 			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {

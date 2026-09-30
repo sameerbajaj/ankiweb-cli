@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/sameerbajaj/ankiweb-cli/internal/ankiwebproto"
 	"github.com/spf13/cobra"
 )
 
@@ -87,19 +88,25 @@ func newNovelCardImportCmd(flags *rootFlags) *cobra.Command {
 			// In real mode, post each card to AnkiWeb via client if authenticated
 			if !flags.dryRun {
 				c, clientErr := flags.newClient()
-				if clientErr == nil && c != nil {
-					for _, card := range parsedCards {
-						bodyMap := map[string]any{
-							"deck":     deckName,
-							"notetype": card.Notetype,
-							"front":    card.Front,
-							"back":     card.Back,
-							"tags":     strings.Join(card.Tags, " "),
-							"fields":   card.Fields,
-						}
-						_, _, _ = c.PostWithParams(cmd.Context(), "/svc/editor/add-or-update", nil, bodyMap)
-					}
+				if clientErr != nil {
+					return clientErr
 				}
+				importedCount := 0
+				for _, card := range parsedCards {
+					addReq := ankiwebproto.AddCardRequest{
+						DeckName:     deckName,
+						NotetypeName: card.Notetype,
+						Front:        card.Front,
+						Back:         card.Back,
+						Fields:       card.Fields,
+						Tags:         card.Tags,
+					}
+					if _, err := ankiwebproto.AddCard(cmd.Context(), c, addReq); err != nil {
+						return fmt.Errorf("failed adding card %q: %w", card.Front, err)
+					}
+					importedCount++
+				}
+				result.TotalImported = importedCount
 			}
 
 			if flags.agent || flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
