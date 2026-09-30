@@ -95,32 +95,17 @@ func detectDuplicateCards(ctx context.Context, flags *rootFlags, targetDeck stri
 		{id: "107", deck: "General", prompt: "Speed of light in vacuum"},
 	}
 
-	// Try querying live notes if client is available
-	c, err := flags.newClient()
-	if err == nil && c != nil {
-		reqBody := map[string]any{"query": ""}
-		if targetDeck != "" {
-			reqBody["query"] = fmt.Sprintf("deck:%q", targetDeck)
-		}
-		data, status, postErr := c.PostWithParams(ctx, "/svc/search/search", nil, reqBody)
-		if postErr == nil && status == 200 {
-			var resp struct {
-				Notes []struct {
-					ID           string `json:"id"`
-					DeckName     string `json:"deck_name"`
-					JoinedFields string `json:"joined_fields"`
-				} `json:"notes"`
-			}
-			if json.Unmarshal(data, &resp) == nil && len(resp.Notes) > 0 {
-				pool = nil
-				for _, n := range resp.Notes {
-					fields := strings.Split(n.JoinedFields, "\x1f")
-					prompt := n.JoinedFields
-					if len(fields) > 0 {
-						prompt = fields[0]
-					}
-					pool = append(pool, cardSample{id: n.ID, deck: n.DeckName, prompt: prompt})
-				}
+	colPath := FindCollectionPath("")
+	if colPath != "" {
+		notes, err := SearchCollection(ctx, colPath, "", 50000)
+		if err == nil && len(notes) > 0 {
+			pool = nil
+			for _, n := range notes {
+				pool = append(pool, cardSample{
+					id:     fmt.Sprint(n.ID),
+					deck:   n.Deck,
+					prompt: n.Front,
+				})
 			}
 		}
 	}

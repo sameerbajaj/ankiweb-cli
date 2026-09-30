@@ -6,70 +6,65 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 func newCardSearchCmd(flags *rootFlags) *cobra.Command {
 	var bodyQuery string
-	var stdinBody bool
+	var flagCollection string
+	var limit int
 
 	cmd := &cobra.Command{
-		Use:         "search",
-		Short:       "Search notes in your collection",
-		Example:     "  ankiweb card search --query \"tag:cs\"",
-		Annotations: map[string]string{"pp:endpoint": "card.search", "pp:method": "POST", "pp:path": "/svc/search/search", "mcp:read-only": "true"},
+		Use:         "search [query]",
+		Short:       "Search notes and cards in your Anki collection",
+		Example:     "  ankiweb card search \"What is Raft?\"\n  ankiweb card search --query \"tag:dev_bot\"\n  ankiweb card search --query \"deck:Default\"",
+		Annotations: map[string]string{"pp:endpoint": "card.search", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !stdinBody {
+			query := bodyQuery
+			if query == "" && len(args) > 0 {
+				query = strings.Join(args, " ")
 			}
-			path := "/svc/search/search"
-			c, err := flags.newClient()
+
+			colPath := FindCollectionPath(flagCollection)
+			if colPath == "" {
+				return fmt.Errorf("local Anki collection not found; set ANKI_COLLECTION_PATH or pass --collection <path/to/collection.anki2>")
+			}
+
+			notes, err := SearchCollection(cmd.Context(), colPath, query, limit)
 			if err != nil {
 				return err
 			}
-			params := map[string]string{}
-			var body any
-			if stdinBody {
-				stdinData, err := io.ReadAll(os.Stdin)
-				if err != nil {
-					return fmt.Errorf("reading stdin: %w", err)
-				}
-				var jsonBody map[string]any
-				if err := json.Unmarshal(stdinData, &jsonBody); err != nil {
-					return fmt.Errorf("parsing stdin JSON: %w", err)
-				}
-				body = jsonBody
-			} else {
-				bodyMap := map[string]any{}
-				body = bodyMap
-				if cmd.Flags().Changed("query") || bodyQuery != "" {
-					bodyMap["query"] = bodyQuery
-				}
-			}
-			data, statusCode, err := c.PostQueryWithParams(cmd.Context(), path, params, body)
-			if err != nil {
-				return classifyAPIError(cmd.OutOrStdout(), err, flags)
-			}
-			_ = statusCode
-			prov := attachFreshness(DataProvenance{Source: "live"}, flags)
-			outputData := data
-			// Print provenance to stderr for human-facing output only.
-			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
-			// --select) and piped stdout suppress this line; the JSON envelope
-			// already carries meta.source for those consumers.
-			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
+
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				var countItems []json.RawMessage
-				_ = json.Unmarshal(outputData, &countItems)
-				printProvenance(cmd, len(countItems), prov)
+				if len(notes) == 0 {
+					fmt.Fprintf(cmd.OutOrStdout(), "No matching cards found for query %q in %s.\n", query, colPath)
+					return nil
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Found %d matching card(s) in %s:\n\n", len(notes), colPath)
+				for i, n := range notes {
+					fmt.Fprintf(cmd.OutOrStdout(), "[%d] %s (ID: %d | Deck: %s)\n", i+1, n.Front, n.ID, n.Deck)
+					if n.Back != "" {
+						backPreview := strings.ReplaceAll(n.Back, "\n", " ")
+						if len(backPreview) > 80 {
+							backPreview = backPreview[:80] + "..."
+						}
+						fmt.Fprintf(cmd.OutOrStdout(), "    %s\n", backPreview)
+					}
+					if len(n.Tags) > 0 {
+						fmt.Fprintf(cmd.OutOrStdout(), "    Tags: %s\n", strings.Join(n.Tags, ", "))
+					}
+				}
+				return nil
 			}
-			// For JSON output, wrap with provenance envelope before passing through flags.
-			// --select wins over --compact when both are set; --compact only runs when
-			// no explicit fields were requested. Explicit format flags (--csv, --quiet,
-			// --plain) opt out of the auto-JSON path so piped consumers that asked for
-			// a non-JSON format reach the standard pipeline below.
+
+			data, err := json.Marshal(notes)
+			if err != nil {
+				return err
+			}
+
+			prov := attachFreshness(DataProvenance{Source: "local", Reason: "collection_anki2"}, flags)
 			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				var selectErr error
 				filtered := data
@@ -77,7 +72,7 @@ func newCardSearchCmd(flags *rootFlags) *cobra.Command {
 					filtered, selectErr = filterFieldsChecked(filtered, flags.selectFields)
 					selectErr = selectErrorForDryRun(selectErr, flags, data)
 				} else if flags.compact {
-					filtered = compactFields(filtered, map[string]bool{"id": true, "notetype_id": true, "deck_id": true})
+					filtered = compactFields(filtered, map[string]bool{"id": true, "deck": true, "front": true})
 				}
 				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
 				if wrapErr != nil {
@@ -92,28 +87,13 @@ func newCardSearchCmd(flags *rootFlags) *cobra.Command {
 				}
 				return selectErr
 			}
-			// For all other output modes (table, csv, plain, quiet), use the standard pipeline
-			if wantsHumanTable(cmd.OutOrStdout(), flags) {
-				var items []map[string]any
-				if json.Unmarshal(outputData, &items) == nil && len(items) > 0 {
-					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
-						return err
-					}
-					if len(items) >= 25 {
-						fmt.Fprintf(os.Stderr, "\nShowing %d results. To narrow: add --limit, --json --select, or filter flags.\n", len(items))
-					}
-					return nil
-				}
-			}
-			formatData := data
-			if flags.csv || flags.plain {
-				formatData = outputData
-			}
-			return printOutputWithFlagsMeta(cmd.OutOrStdout(), formatData, flags, map[string]any{"source": "live"}, map[string]bool{"id": true, "notetype_id": true, "deck_id": true})
+
+			return printOutputWithFlagsMeta(cmd.OutOrStdout(), data, flags, map[string]any{"source": "local", "path": colPath}, map[string]bool{"id": true, "deck": true, "front": true})
 		},
 	}
-	cmd.Flags().StringVar(&bodyQuery, "query", "", "Search query using Anki search syntax")
-	cmd.Flags().BoolVar(&stdinBody, "stdin", false, "Read request body as JSON from stdin")
+	cmd.Flags().StringVar(&bodyQuery, "query", "", "Search query (supports tag:name, deck:name, and keywords)")
+	cmd.Flags().StringVar(&flagCollection, "collection", "", "Path to collection.anki2 (auto-discovered if omitted)")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum results to return")
 
 	return cmd
 }
