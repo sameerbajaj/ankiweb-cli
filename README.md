@@ -2,8 +2,9 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/sameerbajaj/ankiweb-cli.svg)](https://pkg.go.dev/github.com/sameerbajaj/ankiweb-cli)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Author](https://img.shields.io/badge/Author-Sameer%20Bajaj-blue.svg)](https://sameerbajaj.com)
 
-A terminal-native Go CLI and MCP server for [AnkiWeb](https://ankiuser.net). 
+A terminal-native Go CLI and MCP server for [AnkiWeb](https://ankiuser.net), built by [Sameer Bajaj](https://sameerbajaj.com). 
 
 Every existing Anki tool requires the desktop Anki GUI running with the AnkiConnect add-on bound to a local port. `ankiweb` talks directly to AnkiWeb's cloud services, enabling fast card creation with custom templates, batch Markdown importing, in-terminal flashcard reviews, deck triage, and community shared deck discovery — from any terminal or headless machine.
 
@@ -194,6 +195,12 @@ Run the bundled MCP server in Claude Desktop, Cursor, or Codex:
   }
 }
 ```
+
+---
+
+## 👤 Author
+
+Developed by [Sameer Bajaj](https://sameerbajaj.com).
 
 ---
 
