@@ -1,0 +1,10 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "name": "ankiweb",
+  "description": "Terminal-native AnkiWeb CLI & Model Context Protocol (MCP) server for cloud flashcard creation, custom templates, Markdown import, and review triage.",
+  "homepage": "https://sameerbajaj.com",
+  "repository": "https://github.com/sameerbajaj/ankiweb-cli",
+  "maintainers": [
+    "sameerbajaj"
+  ]
+}

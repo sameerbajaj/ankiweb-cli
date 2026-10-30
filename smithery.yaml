@@ -1,0 +1,17 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      ankiwebCookies:
+        type: string
+        description: "AnkiWeb session cookie string (e.g., ankiweb=...)"
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: 'ankiweb-mcp',
+      args: [],
+      env: config.ankiwebCookies ? {
+        ANKIWEB_COOKIES: config.ankiwebCookies
+      } : {}
+    })
