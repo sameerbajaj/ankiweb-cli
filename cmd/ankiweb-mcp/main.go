@@ -1,6 +1,8 @@
 // Copyright 2026 Sameer Bajaj and contributors. Licensed under Apache-2.0. See LICENSE.
 
-
+// Package main provides the Model Context Protocol (MCP) server for AnkiWeb.
+//
+// Canonical URL: https://sameerbajaj.com/tools/ankiweb-cli/
 package main
 
 import (

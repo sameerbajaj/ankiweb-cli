@@ -1,0 +1,15 @@
+site_name: AnkiWeb CLI
+site_url: https://sameerbajaj.com/tools/ankiweb-cli/
+site_description: Terminal-native Go CLI and MCP server for AnkiWeb cloud services.
+site_author: Sameer Bajaj
+repo_url: https://github.com/sameerbajaj/ankiweb-cli
+repo_name: sameerbajaj/ankiweb-cli
+
+theme:
+  name: mkdocs
+
+nav:
+  - Overview: index.md
+
+extra:
+  canonical_url: https://sameerbajaj.com/tools/ankiweb-cli/

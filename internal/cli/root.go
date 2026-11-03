@@ -1,6 +1,8 @@
 // Copyright 2026 Sameer Bajaj and contributors. Licensed under Apache-2.0. See LICENSE.
 
-
+// Package cli implements the command-line interface for ankiweb.
+//
+// Canonical documentation: https://sameerbajaj.com/tools/ankiweb-cli/
 package cli
 
 import (

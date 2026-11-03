@@ -1,0 +1,28 @@
+# Maintainer: Sameer Bajaj
+
+pkgname=ankiweb-cli
+pkgver=0.1.2
+pkgrel=1
+pkgdesc="Terminal-native Anki card generation, study, and AnkiWeb cloud sync"
+arch=('x86_64' 'aarch64')
+url="https://sameerbajaj.com/tools/ankiweb-cli/"
+license=('Apache-2.0')
+depends=('glibc')
+makedepends=('go')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/sameerbajaj/$pkgname/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$pkgname-$pkgver"
+    export CGO_ENABLED=0
+    go build -trimpath -ldflags="-s -w" -o bin/ankiweb ./cmd/ankiweb
+    go build -trimpath -ldflags="-s -w" -o bin/ankiweb-mcp ./cmd/ankiweb-mcp
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm755 bin/ankiweb "$pkgdir/usr/bin/ankiweb"
+    install -Dm755 bin/ankiweb-mcp "$pkgdir/usr/bin/ankiweb-mcp"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
