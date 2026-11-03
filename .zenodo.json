@@ -1,20 +1,10 @@
 {
   "title": "ankiweb-cli: Terminal-native Go CLI and MCP server for AnkiWeb",
-  "description": "A terminal-native Go CLI and MCP server for AnkiWeb cloud services. Supports custom card templates, batch Markdown importing, terminal flashcard reviews, deck triage, and community shared deck discovery. Canonical homepage: https://sameerbajaj.com/tools/ankiweb-cli/",
+  "description": "<p>Terminal-native Go CLI and MCP server for AnkiWeb, built by <a href=\"https://sameerbajaj.com\">Sameer Bajaj</a>. Canonical documentation and homepage: <a href=\"https://sameerbajaj.com/tools/ankiweb-cli/\">https://sameerbajaj.com/tools/ankiweb-cli/</a>.</p>",
   "creators": [
     {
       "name": "Sameer Bajaj"
     }
-  ],
-  "license": "Apache-2.0",
-  "keywords": [
-    "anki",
-    "ankiweb",
-    "spaced-repetition",
-    "flashcards",
-    "cli",
-    "mcp",
-    "go"
   ],
   "upload_type": "software",
   "access_right": "open",
